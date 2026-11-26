@@ -1,0 +1,10 @@
+# Read by NeoForge 1.20.5+.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="CC0-1.0"
+
+[[mods]]
+modId="btainstaller"
+version="1.0.0"
+displayName="BTA Installer"
+description='''This mod sets up Better than Adventure. On this Minecraft it offers to set up a Better than Adventure instance.'''

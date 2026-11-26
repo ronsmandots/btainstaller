@@ -1,0 +1,10 @@
+# Read by Forge (1.13+) and NeoForge up to 1.20.4. On Better than Adventure none of this is used, the fabric.mod.json is.
+modLoader="javafml"
+loaderVersion="[1,)"
+license="CC0-1.0"
+
+[[mods]]
+modId="btainstaller"
+version="1.0.0"
+displayName="BTA Installer"
+description='''This mod sets up Better than Adventure. On this Minecraft it offers to set up a Better than Adventure instance.'''

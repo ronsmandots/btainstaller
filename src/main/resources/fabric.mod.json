@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"id": "btainstaller",
+	"version": "${version}",
+	"name": "BTA Installer",
+	"description": "Sets up a Better than Adventure instance when put into the mods folder of any other Minecraft version or loader.",
+	"authors": [
+		"ron",
+		"claude"
+	],
+	"license": "CC0-1.0",
+	"environment": "*",
+	"entrypoints": {
+		"preLaunch": [
+			"ron.btainstaller.FabricPreLaunch"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.12",
+		"java": ">=8"
+	}
+}
