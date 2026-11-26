@@ -87,6 +87,8 @@ public final class BtaSetup {
 			cmd.add(BtaSetup.class.getName());
 			cmd.add(gameDir.toString());
 			cmd.add(jar.toString());
+			cmd.add(argument("--username", "Player"));
+			cmd.add(argument("--uuid", ""));
 			ProcessBuilder pb = new ProcessBuilder(cmd);
 			pb.environment().remove("JAVA_TOOL_OPTIONS");
 			pb.environment().remove("_JAVA_OPTIONS");
@@ -112,6 +114,17 @@ public final class BtaSetup {
 	private static boolean isClient() {
 		String cmd = System.getProperty("sun.java.command", "");
 		return cmd.contains("--accessToken") || cmd.contains("--username") || cmd.toLowerCase().contains("client");
+	}
+
+	/** The value after a launch argument of the game being started (the player name, the uuid). */
+	private static String argument(String name, String fallback) {
+		String[] parts = System.getProperty("sun.java.command", "").split(" ");
+		for (int i = 0; i < parts.length - 1; i++) {
+			if (parts[i].equals(name)) {
+				return parts[i + 1];
+			}
+		}
+		return fallback;
 	}
 
 	private static Path gameDir() {
@@ -185,12 +198,30 @@ public final class BtaSetup {
 	}
 
 	/** The note the player has to see before anything is downloaded or changed. */
-	static String note(String version) {
+	static String note(String version, boolean standalone) {
 		return "This mod installs a custom Minecraft version called Better than Adventure, version " + version + ". "
 			+ "It will not work with other mods, however, Better than Adventure supports more mods that were built specifically for it. "
-			+ "It will automatically download Better than Adventure for you, replacing your current instance and disabling mods that arent compatible. "
+			+ (standalone
+				? "It will automatically download Better than Adventure for you and run it on its own, next to your current instance, which is left as it is. "
+				: "It will automatically download Better than Adventure for you, replacing your current instance and disabling mods that arent compatible. ")
 			+ "Have fun!";
 	}
+
+	/** Prism Launcher, MultiMC and the like: game folder = <instance>/.minecraft with instance.cfg and mmc-pack.json beside it. */
+	static boolean isMultiMc(Path gameDir) {
+		Path root = gameDir.getParent();
+		String leaf = gameDir.getFileName().toString();
+		return root != null && (leaf.equals(".minecraft") || leaf.equals("minecraft"))
+			&& Files.isRegularFile(root.resolve("instance.cfg")) && Files.isRegularFile(root.resolve("mmc-pack.json"));
+	}
+
+	private static final String DETAILS_STANDALONE = "What will happen if you agree:\n"
+		+ " - Better than Adventure, Minecraft Beta 1.7.3, the Fabric loader, LWJGL and the game's sounds are downloaded into a \"bta\" folder inside your game folder (several hundred MB).\n"
+		+ " - If no Java 17 or newer is found on this computer, a Java 17 is downloaded into the same folder.\n"
+		+ " - Better than Adventure then starts in its own window, with its own mods, worlds and options in bta/game. Put Better than Adventure mods in bta/game/mods.\n"
+		+ " - Your current instance, its mods and its launcher are not changed. The next time you start this instance, you are offered to start Better than Adventure again.\n"
+		+ " - RonTech or other mods are not downloaded.\n"
+		+ "You need an internet connection.";
 
 	private static final String DETAILS = "What will happen if you agree:\n"
 		+ " - The instance files (settings, version list, loader) are backed up to a btainstaller-backup folder, then replaced by the Better than Adventure ones.\n"
@@ -203,11 +234,13 @@ public final class BtaSetup {
 		final Path gameDir = Paths.get(args[0]);
 		final Path jar = Paths.get(args[1]);
 		final String version = btaVersion(jar);
+		final String user = args.length > 2 ? args[2] : "Player";
+		final String uuid = args.length > 3 && !args[3].isEmpty() ? args[3] : offlineUuid(user);
 		SwingUtilities.invokeAndWait(new Runnable() {
 			@Override
 			public void run() {
 				try {
-					new Window(gameDir, jar, version).show();
+					new Window(gameDir, jar, version, user, uuid).show();
 				} catch (Throwable t) {
 					t.printStackTrace();
 				}
@@ -215,22 +248,36 @@ public final class BtaSetup {
 		});
 	}
 
+	private static String offlineUuid(String user) {
+		return java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + user).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString().replace("-", "");
+	}
+
 	/** The note window, then progress, then the result. */
 	private static final class Window {
 		private final Path gameDir;
 		private final Path jar;
 		private final String version;
+		private final String user;
+		private final String uuid;
+		private final boolean standalone;
 		private final JDialog dialog = new JDialog((java.awt.Frame) null, "BTA Installer", true);
 
-		Window(Path gameDir, Path jar, String version) {
+		Window(Path gameDir, Path jar, String version, String user, String uuid) {
 			this.gameDir = gameDir;
 			this.jar = jar;
 			this.version = version;
+			this.user = user;
+			this.uuid = uuid;
+			this.standalone = !isMultiMc(gameDir);
 		}
 
 		void show() {
-			JTextArea noteArea = text(note(version), 6, 54, true);
-			JTextArea details = text(DETAILS, 8, 54, false);
+			if (standalone && Standalone.installed(gameDir)) {
+				offerLaunch();
+				return;
+			}
+			JTextArea noteArea = text(note(version, standalone), 6, 54, true);
+			JTextArea details = text(standalone ? DETAILS_STANDALONE : DETAILS, 8, 54, false);
 			JPanel texts = new JPanel(new BorderLayout(0, 8));
 			texts.setBorder(BorderFactory.createEmptyBorder(12, 12, 4, 12));
 			texts.add(noteArea, BorderLayout.NORTH);
@@ -253,6 +300,28 @@ public final class BtaSetup {
 			dialog.setVisible(true);
 		}
 
+		/** Already installed: start it, reinstall it, or carry on with the launcher's own game (which is closed, so: nothing). */
+		private void offerLaunch() {
+			Object[] options = {"Launch Better than Adventure", "Reinstall", "Not now"};
+			int c = JOptionPane.showOptionDialog(null, "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
+				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+			if (c == 0) {
+				try {
+					Standalone.launch(gameDir, user, uuid);
+				} catch (Throwable t) {
+					t.printStackTrace();
+					JOptionPane.showMessageDialog(null, "Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
+				}
+			} else if (c == 1) {
+				try {
+					Files.deleteIfExists(Standalone.root(gameDir).resolve("ready.properties"));
+				} catch (IOException ignored) {
+					// the install overwrites it anyway
+				}
+				show();
+			}
+		}
+
 		private void install(final JButton agree, final JButton cancel, JPanel buttons) {
 			agree.setEnabled(false);
 			cancel.setEnabled(false);
@@ -267,7 +336,16 @@ public final class BtaSetup {
 				boolean ok = true;
 				boolean unsupported = false;
 				try {
-					result = Setup.run(gameDir, jar, version);
+					if (standalone) {
+						String[] v = version.split("\\.");
+						final String branch = v[0] + (v.length > 1 ? "." + v[1] : "");
+						Standalone.install(gameDir, REPO_RAW, branch, user, uuid, t -> SwingUtilities.invokeLater(() -> bar.setString(t)));
+						Standalone.launch(gameDir, user, uuid);
+						result = "Better than Adventure is installed and starting now. It can take a moment to open.\n\n"
+							+ "Its files are in the \"bta\" folder of your game folder. Put Better than Adventure mods in bta/game/mods.";
+					} else {
+						result = Setup.run(gameDir, jar, version);
+					}
 				} catch (Setup.Unsupported u) {
 					result = u.getMessage();
 					unsupported = true;
