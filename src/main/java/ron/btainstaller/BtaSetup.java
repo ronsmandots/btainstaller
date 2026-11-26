@@ -297,20 +297,21 @@ public final class BtaSetup {
 			agree.addActionListener(e -> install(agree, cancel, buttons));
 			dialog.pack();
 			dialog.setLocationRelativeTo(null);
+			front(dialog);
 			dialog.setVisible(true);
 		}
 
 		/** Already installed: start it, reinstall it, or carry on with the launcher's own game (which is closed, so: nothing). */
 		private void offerLaunch() {
 			Object[] options = {"Launch Better than Adventure", "Reinstall", "Not now"};
-			int c = JOptionPane.showOptionDialog(null, "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
+			int c = JOptionPane.showOptionDialog(onTop(), "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
 				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
 			if (c == 0) {
 				try {
 					Standalone.launch(gameDir, user, uuid);
 				} catch (Throwable t) {
 					t.printStackTrace();
-					JOptionPane.showMessageDialog(null, "Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
+					JOptionPane.showMessageDialog(onTop(), "Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
 				}
 			} else if (c == 1) {
 				try {
@@ -360,7 +361,7 @@ public final class BtaSetup {
 				final boolean help = unsupported;
 				SwingUtilities.invokeLater(() -> {
 					dialog.dispose();
-					JOptionPane.showMessageDialog(null, text, good ? "BTA Installer: done" : "BTA Installer: could not set up", good ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+					JOptionPane.showMessageDialog(onTop(), text, good ? "BTA Installer: done" : "BTA Installer: could not set up", good ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
 					if (help) {
 						try {
 							Desktop.getDesktop().browse(URI.create(REPO_PAGE));
@@ -370,6 +371,29 @@ public final class BtaSetup {
 					}
 				});
 			}, "btainstaller").start();
+		}
+
+		/** Always on top, and raised once it is showing: the game window that spawned this one would otherwise cover it. */
+		/** An invisible always-on-top owner, so message boxes opened with it are in front too. */
+		private static java.awt.Frame onTop() {
+			java.awt.Frame f = new java.awt.Frame();
+			f.setUndecorated(true);
+			f.setAlwaysOnTop(true);
+			f.setLocationRelativeTo(null);
+			f.setVisible(true);
+			f.toFront();
+			return f;
+		}
+
+		private static void front(final JDialog d) {
+			d.setAlwaysOnTop(true);
+			d.addWindowListener(new java.awt.event.WindowAdapter() {
+				@Override
+				public void windowOpened(java.awt.event.WindowEvent e) {
+					d.toFront();
+					d.requestFocus();
+				}
+			});
 		}
 
 		private static JTextArea text(String s, int rows, int cols, boolean bold) {
