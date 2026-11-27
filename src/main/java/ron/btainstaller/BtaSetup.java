@@ -76,11 +76,15 @@ public final class BtaSetup {
 	/** Called by the loader entry points. Returns normally on Better than Adventure and on servers. */
 	public static void start(ClassLoader gameLoader) {
 		try {
-			if (isBta(gameLoader) || !isClient()) {
+			Path gameDir = gameDir();
+			boolean bta = isBta(gameLoader);
+			boolean client = isClient();
+			Path jar = ownJar(gameDir);
+			trace(gameDir, "start: bta=" + bta + " client=" + client + " jar=" + jar + " gameDir=" + gameDir + " java=" + System.getProperty("java.version")
+				+ " cmd=" + System.getProperty("sun.java.command", ""));
+			if (bta || !client) {
 				return;
 			}
-			Path gameDir = gameDir();
-			Path jar = ownJar(gameDir);
 			if (jar == null) {
 				return;
 			}
@@ -107,6 +111,15 @@ public final class BtaSetup {
 		}
 	}
 
+	/** What the installer saw when the game started, for finding out why it did or didn't do anything. */
+	private static void trace(Path gameDir, String line) {
+		try {
+			Files.write(gameDir.resolve("btainstaller-start.log"), (line + "\n").getBytes(StandardCharsets.UTF_8));
+		} catch (Throwable ignored) {
+			// logging only
+		}
+	}
+
 	/** Better than Adventure has its own core classes under net.minecraft.core; no other Minecraft does. */
 	private static boolean isBta(ClassLoader loader) {
 		String res = "net/minecraft/core/entity/Mob.class";
@@ -122,7 +135,8 @@ public final class BtaSetup {
 	 */
 	private static boolean isClient() {
 		String cmd = System.getProperty("sun.java.command", "").toLowerCase();
-		if (cmd.contains("nogui") || cmd.contains("server")) {
+		String main = cmd.trim().split(" ")[0];
+		if (cmd.contains("nogui") || main.contains("server")) {
 			return false;
 		}
 		if (cmd.contains("--accessToken".toLowerCase()) || cmd.contains("--username") || cmd.contains("client")) {
