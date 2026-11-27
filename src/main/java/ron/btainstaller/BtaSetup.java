@@ -83,7 +83,7 @@ public final class BtaSetup {
 			boolean client = isClient();
 			Path jar = ownJar(gameDir);
 			trace(gameDir, "start: bta=" + bta + " client=" + client + " jar=" + jar + " gameDir=" + gameDir + " java=" + System.getProperty("java.version")
-				+ " cmd=" + System.getProperty("sun.java.command", ""));
+				+ " cmd=" + System.getProperty("sun.java.command", "").replaceAll("(--(?:accessToken|session|xuid|clientId)\\s+)\\S+", "$1<hidden>"));
 			if (bta || !client) {
 				return;
 			}
