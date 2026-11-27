@@ -133,9 +133,6 @@ final class Standalone {
 		p.say("Looking for Java 17...");
 		Path java = findJava(root, p);
 
-		// Better than Adventure mods of the instance move over to the Better than Adventure game folder.
-		p.say("Moving Better than Adventure mods...");
-		moveMods(gameDir.resolve("mods"), game.resolve("mods"), ownJar);
 
 		Properties ready = new Properties();
 		ready.setProperty("version", String.valueOf(bta.get("version")));
@@ -149,7 +146,7 @@ final class Standalone {
 	}
 
 	/** Valid Better than Adventure mods (not this installer) go from the instance's mods folder to the bta game's. */
-	private static void moveMods(Path from, Path to, Path ownJar) throws Exception {
+	static void moveMods(Path from, Path to) {
 		if (!Files.isDirectory(from)) {
 			return;
 		}
@@ -158,13 +155,22 @@ final class Standalone {
 			for (Path m : s) {
 				mods.add(m);
 			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			return;
 		}
 		for (Path m : mods) {
-			if (BtaSetup.Setup.sameFile(m, ownJar) || isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
-				continue;
+			try {
+				if (isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
+					continue;
+				}
+				Files.createDirectories(to);
+				BtaSetup.Setup.move(m, to.resolve(m.getFileName()));
+				System.out.println("Moved " + m.getFileName() + " to " + to);
+			} catch (Exception e) {
+				// one stuck mod must not stop the rest, or the game
+				System.out.println("Could not move " + m.getFileName() + ": " + e);
 			}
-			Files.createDirectories(to);
-			BtaSetup.Setup.move(m, to.resolve(m.getFileName()));
 		}
 	}
 
@@ -190,6 +196,8 @@ final class Standalone {
 		}
 		Path game = root.resolve("game");
 		Files.createDirectories(game.resolve("logs"));
+		// Better than Adventure mods in the instance's mods folder (new ones too) go to the Better than Adventure game folder.
+		moveMods(gameDir.resolve("mods"), game.resolve("mods"));
 		ProcessBuilder pb = new ProcessBuilder(command(Paths.get(ready.getProperty("java")), ready.getProperty("mainClass"), classpath, game, user, uuid));
 		pb.directory(game.toFile());
 		pb.environment().remove("JAVA_TOOL_OPTIONS");
