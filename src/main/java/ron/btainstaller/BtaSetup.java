@@ -100,6 +100,7 @@ public final class BtaSetup {
 			cmd.add(jar.toString());
 			cmd.add(argument("--username", "Player"));
 			cmd.add(argument("--uuid", ""));
+			cmd.add(java.lang.management.ManagementFactory.getRuntimeMXBean().getName().split("@")[0]); // this game's process id
 			ProcessBuilder pb = new ProcessBuilder(cmd);
 			pb.environment().remove("JAVA_TOOL_OPTIONS");
 			pb.environment().remove("_JAVA_OPTIONS");
@@ -130,12 +131,50 @@ public final class BtaSetup {
 		}
 	}
 
-	/** Tells the game that started this installer that its window is up. */
+	/** The process id of the game that started this installer. */
+	private static String parentPid;
+
+	/**
+	 * Tells the game that started this installer that its window is up, and closes that game from here: the game's own exit
+	 * can be blocked (Forge traps Runtime.halt), so its process is ended from outside after a moment.
+	 */
 	static void ready(Path gameDir) {
 		try {
 			Files.write(gameDir.resolve(READY), new byte[0]);
 		} catch (Throwable ignored) {
 			// the game then waits for its timeout and carries on
+		}
+		final String pid = parentPid;
+		if (pid == null || !pid.matches("\\d+")) {
+			return;
+		}
+		closer = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					Thread.sleep(1000L);
+					boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+					new ProcessBuilder(windows ? new String[]{"taskkill", "/F", "/PID", pid} : new String[]{"kill", "-9", pid})
+						.redirectErrorStream(true).start().waitFor();
+					System.out.println("Closed the original game (process " + pid + ").");
+				} catch (Throwable t) {
+					System.out.println("Could not close the original game: " + t);
+				}
+			}
+		}, "btainstaller-close-game");
+		closer.start();
+	}
+
+	private static Thread closer;
+
+	/** Waits until the original game has been closed (so the installer does not exit before that, and the game's files are free). */
+	static void awaitClose() {
+		try {
+			if (closer != null) {
+				closer.join(10000L);
+			}
+		} catch (InterruptedException ignored) {
+			// carry on
 		}
 	}
 
@@ -301,6 +340,7 @@ public final class BtaSetup {
 		final String version = btaVersion(jar);
 		final String user = args.length > 2 ? args[2] : "Player";
 		final String uuid = args.length > 3 && !args[3].isEmpty() ? args[3] : offlineUuid(user);
+		parentPid = args.length > 4 ? args[4] : null;
 		SwingUtilities.invokeAndWait(new Runnable() {
 			@Override
 			public void run() {
@@ -448,6 +488,7 @@ public final class BtaSetup {
 		private void offerLaunch() {
 			if (Standalone.autoLaunch(gameDir)) {
 				ready(gameDir);
+				awaitClose();
 				try {
 					Standalone.launch(gameDir, user, uuid);
 					System.exit(0);
@@ -519,6 +560,7 @@ public final class BtaSetup {
 				SwingUtilities.invokeLater(() -> {
 					dialog.dispose();
 					if (quiet) {
+						awaitClose();
 						System.exit(0); // the game is running on its own now
 					}
 					message(text, good ? "BTA Installer: done" : "BTA Installer: could not set up", good ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
