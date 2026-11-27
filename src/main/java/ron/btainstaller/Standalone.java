@@ -71,7 +71,7 @@ final class Standalone {
 	// ---------------------------------------------------------------- install
 
 	/** Downloads and prepares everything; returns once the game can be started with {@link #launch}. */
-	static void install(Path gameDir, String repoRaw, String branch, String user, String uuid, Progress p) throws Exception {
+	static void install(Path gameDir, Path ownJar, String repoRaw, String branch, String user, String uuid, Progress p) throws Exception {
 		Path root = root(gameDir);
 		Path game = root.resolve("game");
 		Files.createDirectories(game);
@@ -115,6 +115,10 @@ final class Standalone {
 		p.say("Looking for Java 17...");
 		Path java = findJava(root, p);
 
+		// Better than Adventure mods of the instance move over to the Better than Adventure game folder.
+		p.say("Moving Better than Adventure mods...");
+		moveMods(gameDir.resolve("mods"), game.resolve("mods"), ownJar);
+
 		Properties ready = new Properties();
 		ready.setProperty("version", String.valueOf(bta.get("version")));
 		ready.setProperty("java", java.toString());
@@ -124,6 +128,34 @@ final class Standalone {
 			ready.store(out, "Written by BTA Installer");
 		}
 		writeScripts(root, game, java, String.valueOf(fabric.get("mainClass")), classpath, user, uuid);
+	}
+
+	/** Valid Better than Adventure mods (not this installer) go from the instance's mods folder to the bta game's. */
+	private static void moveMods(Path from, Path to, Path ownJar) throws Exception {
+		if (!Files.isDirectory(from)) {
+			return;
+		}
+		List<Path> mods = new ArrayList<Path>();
+		try (java.nio.file.DirectoryStream<Path> s = Files.newDirectoryStream(from, "*.jar")) {
+			for (Path m : s) {
+				mods.add(m);
+			}
+		}
+		for (Path m : mods) {
+			if (BtaSetup.Setup.sameFile(m, ownJar) || isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
+				continue;
+			}
+			Files.createDirectories(to);
+			BtaSetup.Setup.move(m, to.resolve(m.getFileName()));
+		}
+	}
+
+	private static boolean isInstaller(Path jar) {
+		try (ZipFile zip = new ZipFile(jar.toFile())) {
+			return zip.getEntry("ron/btainstaller/BtaSetup.class") != null;
+		} catch (IOException e) {
+			return false;
+		}
 	}
 
 	// ---------------------------------------------------------------- launch

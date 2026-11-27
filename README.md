@@ -16,3 +16,7 @@ natives, sounds), uses a Java 17+ it finds or downloads one, and starts the game
 `<game folder>/bta` (own `game/mods`, worlds and options), with the player name of the launch it was started from.
 The next start of that instance offers "Launch Better than Adventure". `bta/start-bta.cmd|.sh` start it by hand.
 Your instance is not changed. Not tested in real launchers yet.
+
+The note window has a version selector (the tags of the instance repo, newest selected by default; only the built-in
+version when GitHub can't be reached). In the standalone mode, Better than Adventure mods found in the instance's mods
+folder are moved to `bta/game/mods` (this installer stays).

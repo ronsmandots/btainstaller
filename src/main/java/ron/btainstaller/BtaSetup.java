@@ -2,6 +2,7 @@ package ron.btainstaller;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -27,8 +28,12 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
@@ -248,6 +253,69 @@ public final class BtaSetup {
 		});
 	}
 
+	private static final String REPO_API = "https://api.github.com/repos/Turnip-Labs/bta-fabric-instance-repo/tags?per_page=100";
+
+	/** Versions that have a tag in the instance repo (v8.0.1 -> 8.0.1), newest first; just the given one when GitHub can't be asked. */
+	static List<String> versions(String fallback) {
+		List<String> out = new ArrayList<String>();
+		try {
+			java.net.HttpURLConnection c = (java.net.HttpURLConnection) new URL(REPO_API).openConnection();
+			c.setConnectTimeout(8000);
+			c.setReadTimeout(8000);
+			c.setRequestProperty("User-Agent", "BTA-Installer");
+			java.io.InputStream in = c.getInputStream();
+			ByteArrayOutputStream bo = new ByteArrayOutputStream();
+			byte[] buf = new byte[4096];
+			int n;
+			while ((n = in.read(buf)) > 0) {
+				bo.write(buf, 0, n);
+			}
+			in.close();
+			Matcher m = Pattern.compile("\"name\"\\s*:\\s*\"v?(\\d+(?:\\.\\d+)*)\"").matcher(new String(bo.toByteArray(), StandardCharsets.UTF_8));
+			while (m.find()) {
+				out.add(m.group(1));
+			}
+		} catch (Throwable ignored) {
+			// offline or rate limited: only the built-in version is offered
+		}
+		if (!out.contains(fallback)) {
+			out.add(fallback);
+		}
+		Collections.sort(out, new Comparator<String>() {
+			@Override
+			public int compare(String a, String b) {
+				String[] x = a.split("\\."), y = b.split("\\.");
+				for (int i = 0; i < Math.max(x.length, y.length); i++) {
+					int p = i < x.length ? Integer.parseInt(x[i]) : 0;
+					int q = i < y.length ? Integer.parseInt(y[i]) : 0;
+					if (p != q) {
+						return q - p;
+					}
+				}
+				return 0;
+			}
+		});
+		return out;
+	}
+
+	/** The repo ref holding this exact version: its tag (v8.0.1) when there is one, else the branch (8.0). */
+	static String ref(String version) {
+		String[] v = version.split("\\.");
+		String branch = v[0] + (v.length > 1 ? "." + v[1] : "");
+		try {
+			java.net.HttpURLConnection c = (java.net.HttpURLConnection) new URL(REPO_RAW + "v" + version + "/client/instance.cfg").openConnection();
+			c.setConnectTimeout(8000);
+			c.setReadTimeout(8000);
+			c.setRequestProperty("User-Agent", "BTA-Installer");
+			if (c.getResponseCode() == 200) {
+				return "v" + version;
+			}
+		} catch (Throwable ignored) {
+			// use the branch
+		}
+		return branch;
+	}
+
 	private static String offlineUuid(String user) {
 		return java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + user).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString().replace("-", "");
 	}
@@ -256,7 +324,7 @@ public final class BtaSetup {
 	private static final class Window {
 		private final Path gameDir;
 		private final Path jar;
-		private final String version;
+		private String version;
 		private final String user;
 		private final String uuid;
 		private final boolean standalone;
@@ -276,11 +344,26 @@ public final class BtaSetup {
 				offerLaunch();
 				return;
 			}
-			JTextArea noteArea = text(note(version, standalone), 6, 54, true);
+			final JTextArea noteArea = text(note(version, standalone), 6, 54, true);
+			final List<String> all = versions(version);
+			final JComboBox<String> picker = new JComboBox<String>(all.toArray(new String[0]));
+			picker.setSelectedIndex(0); // newest
+			version = all.get(0);
+			noteArea.setText(note(version, standalone));
+			picker.addActionListener(e -> {
+				version = (String) picker.getSelectedItem();
+				noteArea.setText(note(version, standalone));
+			});
+			JPanel pick = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+			pick.add(new JLabel("Version:  "));
+			pick.add(picker);
 			JTextArea details = text(standalone ? DETAILS_STANDALONE : DETAILS, 8, 54, false);
 			JPanel texts = new JPanel(new BorderLayout(0, 8));
 			texts.setBorder(BorderFactory.createEmptyBorder(12, 12, 4, 12));
-			texts.add(noteArea, BorderLayout.NORTH);
+			JPanel top = new JPanel(new BorderLayout(0, 8));
+			top.add(noteArea, BorderLayout.CENTER);
+			top.add(pick, BorderLayout.SOUTH);
+			texts.add(top, BorderLayout.NORTH);
 			texts.add(new JScrollPane(details), BorderLayout.CENTER);
 
 			JButton agree = new JButton("Agree and install");
@@ -338,9 +421,7 @@ public final class BtaSetup {
 				boolean unsupported = false;
 				try {
 					if (standalone) {
-						String[] v = version.split("\\.");
-						final String branch = v[0] + (v.length > 1 ? "." + v[1] : "");
-						Standalone.install(gameDir, REPO_RAW, branch, user, uuid, t -> SwingUtilities.invokeLater(() -> bar.setString(t)));
+						Standalone.install(gameDir, jar, REPO_RAW, ref(version), user, uuid, t -> SwingUtilities.invokeLater(() -> bar.setString(t)));
 						Standalone.launch(gameDir, user, uuid);
 						result = "Better than Adventure is installed and starting now. It can take a moment to open.\n\n"
 							+ "Its files are in the \"bta\" folder of your game folder. Put Better than Adventure mods in bta/game/mods.";
@@ -411,7 +492,7 @@ public final class BtaSetup {
 
 	// ---------------------------------------------------------------- the actual replacement
 
-	private static final class Setup {
+	static final class Setup {
 		static final class Unsupported extends Exception {
 			Unsupported(String m) {
 				super(m);
@@ -429,8 +510,7 @@ public final class BtaSetup {
 			}
 
 			// 2. Download everything first, so a failed download changes nothing.
-			String[] v = version.split("\\.");
-			String branch = v[0] + (v.length > 1 ? "." + v[1] : "");
+			String branch = ref(version);
 			Path temp = Files.createTempDirectory("btainstaller");
 			for (String f : FILES) {
 				Path to = temp.resolve(f);
@@ -534,7 +614,7 @@ public final class BtaSetup {
 			}
 		}
 
-		private static boolean sameFile(Path a, Path b) {
+		static boolean sameFile(Path a, Path b) {
 			try {
 				return Files.isSameFile(a, b);
 			} catch (IOException e) {
@@ -542,7 +622,7 @@ public final class BtaSetup {
 			}
 		}
 
-		private static void move(Path from, Path to) throws Exception {
+		static void move(Path from, Path to) throws Exception {
 			IOException last = null;
 			for (int i = 0; i < 40; i++) {
 				try {
@@ -557,7 +637,7 @@ public final class BtaSetup {
 		}
 
 		/** A mod is for Better than Adventure when its fabric.mod.json depends on HalpLibe or BTA, or on Minecraft b1.7.x. */
-		private static boolean isBtaMod(Path jar) {
+		static boolean isBtaMod(Path jar) {
 			try (ZipFile zip = new ZipFile(jar.toFile())) {
 				ZipEntry e = zip.getEntry("fabric.mod.json");
 				if (e == null) {
