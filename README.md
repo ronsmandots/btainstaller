@@ -25,11 +25,15 @@ folder are moved to `bta/game/mods` (this installer stays).
 it, opening the instance starts Better than Adventure without asking. Delete that file to get the prompt back (delete
 `bta/ready.properties` as well to see the install window again).
 
-## HalpLibe and updates
+## HalpLibe, Mod Menu and updates
 Every install (and reinstall) downloads the newest HalpLibe release made for the chosen Better than Adventure version
 from GitHub (Turnip-Labs/bta-halplibe; files named like `halplibe-6.2.0+8.0.1.jar`; same major.minor and not a newer patch
 also counts) into the mods folder it uses (`bta/game/mods`, or the instance's `mods` on Prism/MultiMC), and removes older
 HalpLibe jars there. HalpLibe jars found in the instance's mods folder are not moved over; the installer manages that one.
+
+Mod Menu is handled the same way (Turnip-Labs/ModMenu; files named like `modmenu-bta-5.0.2.jar`, the Better than Adventure
+version is read from the release name such as "[BTA! v8.0] 5.0.2"; older `modmenu*.jar` files are removed and copies in the
+instance's mods folder are left alone). If either download fails, the install still finishes and says so.
 
 When the prompt appears on a later run and the repo has a newer Better than Adventure version than the installed one, it
 offers "Update to X" with a warning to update the mods to X too. "Launch" or "Not now" remembers that version

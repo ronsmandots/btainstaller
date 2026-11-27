@@ -70,6 +70,10 @@ final class Standalone {
 
 	private static final String HALPLIBE_API = "https://api.github.com/repos/Turnip-Labs/bta-halplibe/releases?per_page=100";
 	private static final java.util.regex.Pattern HALPLIBE_JAR = java.util.regex.Pattern.compile("halplibe-[^+]+\\+(\\d+(?:\\.\\d+)*)\\.jar");
+	private static final String MODMENU_API = "https://api.github.com/repos/Turnip-Labs/ModMenu/releases?per_page=100";
+	private static final java.util.regex.Pattern MODMENU_JAR = java.util.regex.Pattern.compile("modmenu-bta-\\d[\\d.]*\\.jar");
+	/** Mod Menu names its releases like "[BTA! v8.0] 5.0.2"; the jar name does not carry the game version. */
+	private static final java.util.regex.Pattern MODMENU_RELEASE = java.util.regex.Pattern.compile("\\[BTA!?\\s*v?(\\d+(?:\\.\\d+)*)");
 
 	/**
 	 * Downloads the newest HalpLibe release made for this Better than Adventure version (its file name ends in +8.0.1; one
@@ -77,7 +81,22 @@ final class Standalone {
 	 * HalpLibe jars there. Returns the file name.
 	 */
 	static String halplibe(Path modsDir, String btaVersion) throws Exception {
-		Object releases = new Json(new String(download(HALPLIBE_API), StandardCharsets.UTF_8)).value();
+		return newest("HalpLibe", HALPLIBE_API, HALPLIBE_JAR, null, "halplibe-*.jar", modsDir, btaVersion);
+	}
+
+	/** Same for Mod Menu (Turnip-Labs/ModMenu); the game version it was made for is in the release name. */
+	static String modMenu(Path modsDir, String btaVersion) throws Exception {
+		return newest("Mod Menu", MODMENU_API, MODMENU_JAR, MODMENU_RELEASE, "modmenu*.jar", modsDir, btaVersion);
+	}
+
+	/**
+	 * Newest non-prerelease GitHub release whose asset matches {@code jar} and which is made for btaVersion (the game version
+	 * is group 1 of {@code jar}, or of {@code releaseName} matched against the release name when that is given). The jar goes
+	 * into modsDir and the other files matching {@code cleanup} there are deleted.
+	 */
+	private static String newest(String label, String api, java.util.regex.Pattern jar, java.util.regex.Pattern releaseName,
+			String cleanup, Path modsDir, String btaVersion) throws Exception {
+		Object releases = new Json(new String(download(api), StandardCharsets.UTF_8)).value();
 		String[] v = btaVersion.split("\\.");
 		String minor = v[0] + "." + (v.length > 1 ? v[1] : "0");
 		String name = null;
@@ -88,12 +107,22 @@ final class Standalone {
 			if (Boolean.TRUE.equals(release.get("prerelease")) || Boolean.TRUE.equals(release.get("draft"))) {
 				continue;
 			}
+			String target = null;
+			if (releaseName != null) {
+				java.util.regex.Matcher n = releaseName.matcher(String.valueOf(release.get("name")));
+				if (n.find()) {
+					target = n.group(1);
+				}
+			}
 			for (Object a : list(release.get("assets"))) {
 				Map<String, Object> asset = obj(a);
-				java.util.regex.Matcher m = HALPLIBE_JAR.matcher(String.valueOf(asset.get("name")));
-				if (name == null && m.matches() && compatible(m.group(1), btaVersion, minor)) {
-					name = (String) asset.get("name");
-					url = (String) asset.get("browser_download_url");
+				java.util.regex.Matcher m = jar.matcher(String.valueOf(asset.get("name")));
+				if (name == null && m.matches()) {
+					String t = releaseName == null ? m.group(1) : target;
+					if (t != null && compatible(t, btaVersion, minor)) {
+						name = (String) asset.get("name");
+						url = (String) asset.get("browser_download_url");
+					}
 				}
 			}
 			if (name != null) {
@@ -101,11 +130,11 @@ final class Standalone {
 			}
 		}
 		if (name == null) {
-			throw new IOException("No HalpLibe release is made for Better than Adventure " + btaVersion);
+			throw new IOException("No " + label + " release is made for Better than Adventure " + btaVersion);
 		}
 		Files.createDirectories(modsDir);
 		fetch(url, modsDir.resolve(name), null, null);
-		try (java.nio.file.DirectoryStream<Path> old = Files.newDirectoryStream(modsDir, "halplibe-*.jar")) {
+		try (java.nio.file.DirectoryStream<Path> old = Files.newDirectoryStream(modsDir, cleanup)) {
 			for (Path f : old) {
 				if (!f.getFileName().toString().equals(name)) {
 					try {
@@ -119,7 +148,7 @@ final class Standalone {
 		return name;
 	}
 
-	/** A HalpLibe built for {@code target} runs on {@code version} when it is the same major.minor and not a newer patch. */
+	/** A mod built for {@code target} runs on {@code version} when it is the same major.minor and not a newer patch. */
 	private static boolean compatible(String target, String version, String minor) {
 		String[] t = target.split("\\.");
 		return t.length >= 2 && (t[0] + "." + t[1]).equals(minor) && BtaSetup.compareVersions(target, version) <= 0;
@@ -221,6 +250,12 @@ final class Standalone {
 		} catch (Exception e) {
 			System.out.println("Could not download HalpLibe: " + e); // BTA itself still works; the mods need it
 		}
+		p.say("Downloading Mod Menu...");
+		try {
+			System.out.println("Mod Menu: " + modMenu(game.resolve("mods"), version));
+		} catch (Exception e) {
+			System.out.println("Could not download Mod Menu: " + e);
+		}
 
 		// Java 17.
 		p.say("Looking for Java 17...");
@@ -256,7 +291,7 @@ final class Standalone {
 		for (Path m : mods) {
 			try {
 				// HalpLibe is managed by the installer (one version, the right one), so a copy in the instance stays where it is.
-				if (m.getFileName().toString().toLowerCase().startsWith("halplibe") || isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
+				if (m.getFileName().toString().toLowerCase().startsWith("halplibe") || m.getFileName().toString().toLowerCase().startsWith("modmenu") || isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
 					continue;
 				}
 				Files.createDirectories(to);

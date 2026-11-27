@@ -533,7 +533,7 @@ public final class BtaSetup {
 			if (choice.startsWith("Update to ")) {
 				int sure = JOptionPane.showConfirmDialog(owner, "Update Better than Adventure from " + installed + " to " + newest + "?\n\n"
 					+ "IMPORTANT: your mods (in the bta/game/mods folder) were made for " + installed + ". Update them to the versions made for " + newest
-					+ " too,\nor they may crash the game or not load. HalpLibe is updated automatically; other mods are not.",
+					+ " too,\nor they may crash the game or not load. HalpLibe and Mod Menu are updated automatically; other mods are not.",
 					"BTA Installer: update", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
 				if (sure != JOptionPane.OK_OPTION) {
 					owner.dispose();
@@ -745,6 +745,11 @@ public final class BtaSetup {
 				halp = "HalpLibe: " + Standalone.halplibe(gameDir.resolve("mods"), version) + " (downloaded, older HalpLibe jars removed).\n";
 			} catch (Exception e) {
 				halp = "HalpLibe could not be downloaded (" + e.getMessage() + "); add it to the mods folder yourself.\n";
+			}
+			try {
+				halp += "Mod Menu: " + Standalone.modMenu(gameDir.resolve("mods"), version) + " (downloaded, older Mod Menu jars removed).\n";
+			} catch (Exception e) {
+				halp += "Mod Menu could not be downloaded (" + e.getMessage() + ").\n";
 			}
 			return "Better than Adventure " + version + " is set up.\n\n"
 				+ disabled + " mod(s) were disabled (renamed to .jar.disabled), " + kept + " kept.\n" + halp
