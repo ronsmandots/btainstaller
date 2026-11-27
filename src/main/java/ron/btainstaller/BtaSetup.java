@@ -256,7 +256,7 @@ public final class BtaSetup {
 	private static final String DETAILS_STANDALONE = "What will happen if you agree:\n"
 		+ " - Better than Adventure, Minecraft Beta 1.7.3, the Fabric loader, LWJGL and the game's sounds are downloaded into a \"bta\" folder inside your game folder (several hundred MB).\n"
 		+ " - If no Java 17 or newer is found on this computer, a Java 17 is downloaded, into a common Java folder if there is one, otherwise into the bta folder.\n"
-		+ " - Better than Adventure then starts in its own window, with its own mods, worlds and options in bta/game. Put Better than Adventure mods in bta/game/mods.\n"
+		+ " - Better than Adventure then starts in its own window, with its own mods, worlds and options in bta/game.\n"
 		+ " - Your current instance, its mods and its launcher are not changed. The next time you start this instance, you are offered to start Better than Adventure again.\n"
 		+ "You need an internet connection.";
 
@@ -419,14 +419,16 @@ public final class BtaSetup {
 		/** Already installed: start it, reinstall it, or carry on with the launcher's own game (which is closed, so: nothing). */
 		private void offerLaunch() {
 			Object[] options = {"Launch Better than Adventure", "Reinstall", "Not now"};
-			int c = JOptionPane.showOptionDialog(onTop(), "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
+			java.awt.Frame owner = onTop();
+			int c = JOptionPane.showOptionDialog(owner, "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
 				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+			owner.dispose();
 			if (c == 0) {
 				try {
 					Standalone.launch(gameDir, user, uuid);
 				} catch (Throwable t) {
 					t.printStackTrace();
-					JOptionPane.showMessageDialog(onTop(), "Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
+					message("Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
 				}
 			} else if (c == 1) {
 				try {
@@ -455,8 +457,7 @@ public final class BtaSetup {
 					if (standalone) {
 						Standalone.install(gameDir, jar, REPO_RAW, ref(version), user, uuid, t -> SwingUtilities.invokeLater(() -> bar.setString(t)));
 						Standalone.launch(gameDir, user, uuid);
-						result = "Better than Adventure is installed and starting now. It can take a moment to open.\n\n"
-							+ "Its files are in the \"bta\" folder of your game folder. Put Better than Adventure mods in bta/game/mods.";
+						result = null; // started: nothing to say, the window just closes
 					} else {
 						result = Setup.run(gameDir, jar, version);
 					}
@@ -470,11 +471,15 @@ public final class BtaSetup {
 					ok = false;
 				}
 				final String text = result;
+				final boolean quiet = result == null;
 				final boolean good = ok;
 				final boolean help = unsupported;
 				SwingUtilities.invokeLater(() -> {
 					dialog.dispose();
-					JOptionPane.showMessageDialog(onTop(), text, good ? "BTA Installer: done" : "BTA Installer: could not set up", good ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
+					if (quiet) {
+						System.exit(0); // the game is running on its own now
+					}
+					message(text, good ? "BTA Installer: done" : "BTA Installer: could not set up", good ? JOptionPane.INFORMATION_MESSAGE : JOptionPane.WARNING_MESSAGE);
 					if (help) {
 						try {
 							Desktop.getDesktop().browse(URI.create(REPO_PAGE));
@@ -487,6 +492,16 @@ public final class BtaSetup {
 		}
 
 		/** Always on top, and raised once it is showing: the game window that spawned this one would otherwise cover it. */
+		/** A message box in front of everything; its helper owner window is closed with it (left open it stays as a few pixels). */
+		private static void message(String text, String title, int type) {
+			java.awt.Frame owner = onTop();
+			try {
+				JOptionPane.showMessageDialog(owner, text, title, type);
+			} finally {
+				owner.dispose();
+			}
+		}
+
 		/** An invisible always-on-top owner, so message boxes opened with it are in front too. */
 		private static java.awt.Frame onTop() {
 			java.awt.Frame f = new java.awt.Frame();
