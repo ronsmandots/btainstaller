@@ -165,8 +165,22 @@ final class Standalone {
 					continue;
 				}
 				Files.createDirectories(to);
-				BtaSetup.Setup.move(m, to.resolve(m.getFileName()));
-				System.out.println("Moved " + m.getFileName() + " to " + to);
+				Path target = to.resolve(m.getFileName());
+				try {
+					Files.move(m, target, StandardCopyOption.REPLACE_EXISTING);
+					System.out.println("Moved " + m.getFileName() + " to " + to);
+				} catch (IOException locked) {
+					// The old game still has the jar open (Windows): a copy can be made anyway, and the original removed if it lets go.
+					if (!Files.isRegularFile(target) || Files.size(target) != Files.size(m)) {
+						Files.copy(m, target, StandardCopyOption.REPLACE_EXISTING);
+					}
+					System.out.println("Copied " + m.getFileName() + " to " + to + " (the original is in use: " + locked.getMessage() + ")");
+					try {
+						Files.deleteIfExists(m);
+					} catch (IOException stillOpen) {
+						// stays in the instance's mods folder; it is only copied again if it changes
+					}
+				}
 			} catch (Exception e) {
 				// one stuck mod must not stop the rest, or the game
 				System.out.println("Could not move " + m.getFileName() + ": " + e);
