@@ -255,7 +255,7 @@ public final class BtaSetup {
 
 	private static final String DETAILS_STANDALONE = "What will happen if you agree:\n"
 		+ " - Better than Adventure, Minecraft Beta 1.7.3, the Fabric loader, LWJGL and the game's sounds are downloaded into a \"bta\" folder inside your game folder (several hundred MB).\n"
-		+ " - If no Java 17 or newer is found on this computer, a Java 17 is downloaded, into a common Java folder if there is one, otherwise next to this mod's jar.\n"
+		+ " - If no Java 17 or newer is found on this computer, a Java 17 is downloaded, into a common Java folder if there is one, otherwise into the bta folder.\n"
 		+ " - Better than Adventure then starts in its own window, with its own mods, worlds and options in bta/game. Put Better than Adventure mods in bta/game/mods.\n"
 		+ " - Your current instance, its mods and its launcher are not changed. The next time you start this instance, you are offered to start Better than Adventure again.\n"
 		+ "You need an internet connection.";

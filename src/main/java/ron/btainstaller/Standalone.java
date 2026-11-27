@@ -113,7 +113,7 @@ final class Standalone {
 
 		// Java 17.
 		p.say("Looking for Java 17...");
-		Path java = findJava(root, ownJar, p);
+		Path java = findJava(root, p);
 
 		// Better than Adventure mods of the instance move over to the Better than Adventure game folder.
 		p.say("Moving Better than Adventure mods...");
@@ -331,16 +331,15 @@ final class Standalone {
 
 	// ---------------------------------------------------------------- Java 17
 
-	private static Path findJava(Path root, Path ownJar, Progress p) throws Exception {
+	private static Path findJava(Path root, Progress p) throws Exception {
 		List<Path> homes = new ArrayList<Path>();
 		homes.add(Paths.get(System.getProperty("java.home")));
 		String env = System.getenv("JAVA_HOME");
 		if (env != null) {
 			homes.add(Paths.get(env));
 		}
-		Path beside = ownJar.toAbsolutePath().getParent().resolve(JAVA_DIR);
-		homes.add(beside);
-		homes.add(root.resolve("java"));
+		Path inBta = root.resolve("java");
+		homes.add(inBta);
 		for (String dir : searchRoots()) {
 			Path d = Paths.get(dir);
 			if (Files.isDirectory(d)) {
@@ -363,7 +362,7 @@ final class Standalone {
 			}
 		}
 		p.say("Downloading Java 17 (about 45 MB)...");
-		// Into a common Java folder when this computer has one we can write to (so other programs can use it too), else next to the jar.
+		// Into a common Java folder when this computer has one we can write to (so other programs can use it too), else the bta folder.
 		for (String dir : searchRoots()) {
 			Path d = Paths.get(dir);
 			if (Files.isDirectory(d) && Files.isWritable(d)) {
@@ -374,7 +373,7 @@ final class Standalone {
 				}
 			}
 		}
-		return downloadJava(beside);
+		return downloadJava(inBta);
 	}
 
 	private static String[] searchRoots() {
