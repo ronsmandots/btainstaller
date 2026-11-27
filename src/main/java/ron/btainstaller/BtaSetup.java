@@ -451,7 +451,11 @@ public final class BtaSetup {
 		}
 
 		void show() {
-			if (standalone && Standalone.installed(gameDir)) {
+			if (!standalone) {
+				manualNote();
+				return;
+			}
+			if (Standalone.installed(gameDir)) {
 				offerLaunch();
 				return;
 			}
@@ -493,6 +497,26 @@ public final class BtaSetup {
 			dialog.setLocationRelativeTo(null);
 			front(dialog);
 			dialog.setVisible(true);
+		}
+
+		/** Prism Launcher / MultiMC: no automatic install, just a note and the link to set the instance up by hand. */
+		private void manualNote() {
+			java.awt.Frame owner = onTop();
+			try {
+				String text = "This is a Prism Launcher / MultiMC instance. BTA Installer does not install Better than Adventure here.\n\n"
+					+ "Please set it up manually: the instructions and instance files are on GitHub:\n" + REPO_PAGE;
+				int choice = JOptionPane.showOptionDialog(owner, text, "BTA Installer", JOptionPane.DEFAULT_OPTION,
+					JOptionPane.INFORMATION_MESSAGE, null, new Object[] {"Open GitHub page", "Close"}, "Open GitHub page");
+				if (choice == 0) {
+					try {
+						java.awt.Desktop.getDesktop().browse(new java.net.URI(REPO_PAGE));
+					} catch (Exception e) {
+						JOptionPane.showMessageDialog(owner, "Could not open the browser. Go to:\n" + REPO_PAGE, "BTA Installer", JOptionPane.INFORMATION_MESSAGE);
+					}
+				}
+			} finally {
+				owner.dispose();
+			}
 		}
 
 		/** Already installed: start it, reinstall it, or carry on with the launcher's own game (which is closed, so: nothing). */
