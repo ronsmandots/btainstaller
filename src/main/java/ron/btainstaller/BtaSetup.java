@@ -115,10 +115,26 @@ public final class BtaSetup {
 			|| ClassLoader.getSystemResource(res) != null;
 	}
 
-	/** Clients are launched with a username and an access token; servers never are. */
+	/**
+	 * A client, not a server. The launch arguments can't be relied on (Prism's launcher hands them over on stdin, so the
+	 * command line is just its entry point): servers are recognised by "server"/"nogui", clients by the arguments or,
+	 * failing those, by LWJGL, which only clients have.
+	 */
 	private static boolean isClient() {
-		String cmd = System.getProperty("sun.java.command", "");
-		return cmd.contains("--accessToken") || cmd.contains("--username") || cmd.toLowerCase().contains("client");
+		String cmd = System.getProperty("sun.java.command", "").toLowerCase();
+		if (cmd.contains("nogui") || cmd.contains("server")) {
+			return false;
+		}
+		if (cmd.contains("--accessToken".toLowerCase()) || cmd.contains("--username") || cmd.contains("client")) {
+			return true;
+		}
+		ClassLoader[] loaders = {BtaSetup.class.getClassLoader(), Thread.currentThread().getContextClassLoader(), ClassLoader.getSystemClassLoader()};
+		for (ClassLoader l : loaders) {
+			if (l != null && (l.getResource("org/lwjgl/opengl/GL11.class") != null || l.getResource("org/lwjgl/glfw/GLFW.class") != null)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** The value after a launch argument of the game being started (the player name, the uuid). */
