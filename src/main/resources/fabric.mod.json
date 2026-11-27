@@ -9,6 +9,7 @@
 		"claude"
 	],
 	"license": "CC0-1.0",
+	"icon": "icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"preLaunch": [

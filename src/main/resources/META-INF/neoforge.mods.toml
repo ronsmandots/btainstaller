@@ -7,4 +7,5 @@ license="CC0-1.0"
 modId="btainstaller"
 version="1.0.0"
 displayName="BTA Installer"
+logoFile="icon.png"
 description='''This mod sets up Better than Adventure. On this Minecraft it offers to set up a Better than Adventure instance.'''

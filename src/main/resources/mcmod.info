@@ -4,6 +4,7 @@
     "name": "BTA Installer",
     "description": "Sets up Better than Adventure.",
     "version": "1.0.0",
+    "logoFile": "icon.png",
     "mcversion": "",
     "authorList": ["ron"]
   }
