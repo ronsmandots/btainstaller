@@ -236,8 +236,8 @@ public final class BtaSetup {
 	}
 
 	/** The note the player has to see before anything is downloaded or changed. */
-	static String note(String version, boolean standalone) {
-		return "This mod installs a custom Minecraft version called Better than Adventure, version " + version + ". "
+	static String note(boolean standalone) {
+		return "This mod installs a custom Minecraft version called Better than Adventure (you choose which version below). "
 			+ "It will not work with other mods, however, Better than Adventure supports more mods that were built specifically for it. "
 			+ (standalone
 				? "It will automatically download Better than Adventure for you and run it on its own, next to your current instance, which is left as it is. "
@@ -255,10 +255,9 @@ public final class BtaSetup {
 
 	private static final String DETAILS_STANDALONE = "What will happen if you agree:\n"
 		+ " - Better than Adventure, Minecraft Beta 1.7.3, the Fabric loader, LWJGL and the game's sounds are downloaded into a \"bta\" folder inside your game folder (several hundred MB).\n"
-		+ " - If no Java 17 or newer is found on this computer, a Java 17 is downloaded into the same folder.\n"
+		+ " - If no Java 17 or newer is found on this computer, a Java 17 is downloaded, into a common Java folder if there is one, otherwise next to this mod's jar.\n"
 		+ " - Better than Adventure then starts in its own window, with its own mods, worlds and options in bta/game. Put Better than Adventure mods in bta/game/mods.\n"
 		+ " - Your current instance, its mods and its launcher are not changed. The next time you start this instance, you are offered to start Better than Adventure again.\n"
-		+ " - RonTech or other mods are not downloaded.\n"
 		+ "You need an internet connection.";
 
 	private static final String DETAILS = "What will happen if you agree:\n"
@@ -377,15 +376,15 @@ public final class BtaSetup {
 				offerLaunch();
 				return;
 			}
-			final JTextArea noteArea = text(note(version, standalone), 6, 54, true);
+			final JTextArea noteArea = text(note(standalone), 6, 54, true);
 			final List<String> all = versions(version);
 			final JComboBox<String> picker = new JComboBox<String>(all.toArray(new String[0]));
 			picker.setSelectedIndex(0); // newest
 			version = all.get(0);
-			noteArea.setText(note(version, standalone));
+			noteArea.setText(note(standalone));
 			picker.addActionListener(e -> {
 				version = (String) picker.getSelectedItem();
-				noteArea.setText(note(version, standalone));
+				noteArea.setText(note(standalone));
 			});
 			JPanel pick = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 			pick.add(new JLabel("Version:  "));

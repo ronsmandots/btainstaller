@@ -113,7 +113,7 @@ final class Standalone {
 
 		// Java 17.
 		p.say("Looking for Java 17...");
-		Path java = findJava(root, p);
+		Path java = findJava(root, ownJar, p);
 
 		// Better than Adventure mods of the instance move over to the Better than Adventure game folder.
 		p.say("Moving Better than Adventure mods...");
@@ -331,13 +331,15 @@ final class Standalone {
 
 	// ---------------------------------------------------------------- Java 17
 
-	private static Path findJava(Path root, Progress p) throws Exception {
+	private static Path findJava(Path root, Path ownJar, Progress p) throws Exception {
 		List<Path> homes = new ArrayList<Path>();
 		homes.add(Paths.get(System.getProperty("java.home")));
 		String env = System.getenv("JAVA_HOME");
 		if (env != null) {
 			homes.add(Paths.get(env));
 		}
+		Path beside = ownJar.toAbsolutePath().getParent().resolve(JAVA_DIR);
+		homes.add(beside);
 		homes.add(root.resolve("java"));
 		for (String dir : searchRoots()) {
 			Path d = Paths.get(dir);
@@ -361,7 +363,18 @@ final class Standalone {
 			}
 		}
 		p.say("Downloading Java 17 (about 45 MB)...");
-		return downloadJava(root);
+		// Into a common Java folder when this computer has one we can write to (so other programs can use it too), else next to the jar.
+		for (String dir : searchRoots()) {
+			Path d = Paths.get(dir);
+			if (Files.isDirectory(d) && Files.isWritable(d)) {
+				try {
+					return downloadJava(d.resolve(JAVA_DIR));
+				} catch (IOException | RuntimeException e) {
+					// not usable after all: try the next one
+				}
+			}
+		}
+		return downloadJava(beside);
 	}
 
 	private static String[] searchRoots() {
@@ -434,13 +447,15 @@ final class Standalone {
 		}
 	}
 
-	private static Path downloadJava(Path root) throws Exception {
+	private static final String JAVA_DIR = "btainstaller-java-17";
+	/** Downloads Java 17 into {@code dir} (replacing what is there) and returns its java executable. */
+	private static Path downloadJava(Path dir) throws Exception {
+		Path root = dir.getParent();
 		String os = isWindows() ? "windows" : (isMac() ? "mac" : "linux");
 		String arch = System.getProperty("os.arch", "").toLowerCase();
 		String a = arch.contains("aarch64") || arch.contains("arm64") ? "aarch64" : (arch.equals("x86") || arch.equals("i386") ? "x32" : "x64");
 		Path archive = root.resolve(isWindows() ? "java.zip" : "java.tar.gz");
 		fetch(String.format(ADOPTIUM, os, a), archive, null, null);
-		Path dir = root.resolve("java");
 		deleteTree(dir);
 		Files.createDirectories(dir);
 		if (isWindows()) {
