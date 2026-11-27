@@ -153,21 +153,24 @@ public final class BtaSetup {
 
 	/** The value after a launch argument of the game being started (the player name, the uuid). */
 	private static String argument(String name, String fallback) {
-		String[] parts = System.getProperty("sun.java.command", "").split(" ");
-		for (int i = 0; i < parts.length - 1; i++) {
-			if (parts[i].equals(name)) {
-				return parts[i + 1];
-			}
+		String cmd = System.getProperty("sun.java.command", "");
+		int at = cmd.indexOf(" " + name + " ");
+		if (at < 0) {
+			return fallback;
 		}
-		return fallback;
+		int start = at + name.length() + 2;
+		// The value runs to the next argument ("--something"), so paths with spaces stay in one piece.
+		int end = cmd.indexOf(" --", start);
+		String value = (end < 0 ? cmd.substring(start) : cmd.substring(start, end)).trim();
+		return value.isEmpty() ? fallback : value;
 	}
 
 	private static Path gameDir() {
-		String cmd = System.getProperty("sun.java.command", "");
-		String[] parts = cmd.split(" ");
-		for (int i = 0; i < parts.length - 1; i++) {
-			if (parts[i].equals("--gameDir")) {
-				return Paths.get(parts[i + 1]).toAbsolutePath();
+		String value = argument("--gameDir", null);
+		if (value != null) {
+			Path p = Paths.get(value).toAbsolutePath();
+			if (Files.isDirectory(p)) {
+				return p;
 			}
 		}
 		return Paths.get(System.getProperty("user.dir")).toAbsolutePath();
