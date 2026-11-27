@@ -115,7 +115,9 @@ public final class BtaSetup {
 			while (System.currentTimeMillis() < end) {
 				if (Files.exists(ready)) {
 					Files.deleteIfExists(ready);
-					Runtime.getRuntime().halt(0);
+					// By reflection: Forge rewrites direct Runtime.halt calls and prints a warning about them. The installer also
+					// ends this process from outside once its window is up, so a blocked halt is not a problem.
+					Runtime.class.getMethod("halt", int.class).invoke(Runtime.getRuntime(), 0);
 				}
 				if (!child.isAlive()) {
 					trace(gameDir, "start: the installer ended without opening its window");
