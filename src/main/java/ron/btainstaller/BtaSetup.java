@@ -359,11 +359,15 @@ public final class BtaSetup {
 
 	/** Versions that have a tag in the instance repo (v8.0.1 -> 8.0.1), newest first; just the given one when GitHub can't be asked. */
 	static List<String> versions(String fallback) {
+		return versions(fallback, 8000);
+	}
+
+	static List<String> versions(String fallback, int timeoutMillis) {
 		List<String> out = new ArrayList<String>();
 		try {
 			java.net.HttpURLConnection c = (java.net.HttpURLConnection) new URL(REPO_API).openConnection();
-			c.setConnectTimeout(8000);
-			c.setReadTimeout(8000);
+			c.setConnectTimeout(timeoutMillis);
+			c.setReadTimeout(timeoutMillis);
 			c.setRequestProperty("User-Agent", "BTA-Installer");
 			java.io.InputStream in = c.getInputStream();
 			ByteArrayOutputStream bo = new ByteArrayOutputStream();
@@ -386,18 +390,23 @@ public final class BtaSetup {
 		Collections.sort(out, new Comparator<String>() {
 			@Override
 			public int compare(String a, String b) {
-				String[] x = a.split("\\."), y = b.split("\\.");
-				for (int i = 0; i < Math.max(x.length, y.length); i++) {
-					int p = i < x.length ? Integer.parseInt(x[i]) : 0;
-					int q = i < y.length ? Integer.parseInt(y[i]) : 0;
-					if (p != q) {
-						return q - p;
-					}
-				}
-				return 0;
+				return compareVersions(b, a); // newest first
 			}
 		});
 		return out;
+	}
+
+	/** Positive when version a is newer than b (8.0.1 > 8.0), negative when older, 0 when equal. */
+	static int compareVersions(String a, String b) {
+		String[] x = a.split("\\."), y = b.split("\\.");
+		for (int i = 0; i < Math.max(x.length, y.length); i++) {
+			int p = i < x.length ? Integer.parseInt(x[i]) : 0;
+			int q = i < y.length ? Integer.parseInt(y[i]) : 0;
+			if (p != q) {
+				return p - q;
+			}
+		}
+		return 0;
 	}
 
 	/** The repo ref holding this exact version: its tag (v8.0.1) when there is one, else the branch (8.0). */
@@ -488,7 +497,16 @@ public final class BtaSetup {
 
 		/** Already installed: start it, reinstall it, or carry on with the launcher's own game (which is closed, so: nothing). */
 		private void offerLaunch() {
-			if (Standalone.autoLaunch(gameDir)) {
+			// Is there a newer Better than Adventure than the installed one (that the player has not already declined)?
+			String installed = Standalone.installedVersion(gameDir);
+			String newest = null;
+			if (installed != null) {
+				String top = versions(installed, 3000).get(0);
+				if (compareVersions(top, installed) > 0 && !top.equals(Standalone.ignoredUpdate(gameDir))) {
+					newest = top;
+				}
+			}
+			if (newest == null && Standalone.autoLaunch(gameDir)) {
 				ready(gameDir);
 				awaitClose();
 				try {
@@ -500,14 +518,33 @@ public final class BtaSetup {
 					return;
 				}
 			}
-			Object[] options = {"Launch Better than Adventure", "Reinstall", "Not now"};
+			Object[] options = newest == null
+				? new Object[]{"Launch Better than Adventure", "Reinstall", "Not now"}
+				: new Object[]{"Launch Better than Adventure", "Update to " + newest, "Reinstall", "Not now"};
 			java.awt.Frame owner = onTop();
 			ready(gameDir);
 			javax.swing.JCheckBox auto = new javax.swing.JCheckBox("Open Better than Adventure automatically from now on");
-			int c = JOptionPane.showOptionDialog(owner, new Object[]{"Better than Adventure is installed next to this instance.\nStart it now?", auto}, "BTA Installer",
+			String text = newest == null
+				? "Better than Adventure is installed next to this instance.\nStart it now?"
+				: "A newer Better than Adventure is available: " + newest + " (installed: " + installed + ").\nStart the installed one, or update?";
+			int c = JOptionPane.showOptionDialog(owner, new Object[]{text, auto}, "BTA Installer",
 				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+			String choice = c < 0 ? "Not now" : String.valueOf(options[c]);
+			if (choice.startsWith("Update to ")) {
+				int sure = JOptionPane.showConfirmDialog(owner, "Update Better than Adventure from " + installed + " to " + newest + "?\n\n"
+					+ "IMPORTANT: your mods (in the bta/game/mods folder) were made for " + installed + ". Update them to the versions made for " + newest
+					+ " too,\nor they may crash the game or not load. HalpLibe is updated automatically; other mods are not.",
+					"BTA Installer: update", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+				if (sure != JOptionPane.OK_OPTION) {
+					owner.dispose();
+					return;
+				}
+			}
 			owner.dispose();
-			if (c == 0) {
+			if (choice.startsWith("Launch")) {
+				if (newest != null) {
+					Standalone.setIgnoredUpdate(gameDir, newest);
+				}
 				try {
 					Standalone.setAutoLaunch(gameDir, auto.isSelected());
 					Standalone.launch(gameDir, user, uuid);
@@ -515,13 +552,15 @@ public final class BtaSetup {
 					t.printStackTrace();
 					message("Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
 				}
-			} else if (c == 1) {
+			} else if (choice.startsWith("Update to ") || choice.equals("Reinstall")) {
 				try {
 					Files.deleteIfExists(Standalone.root(gameDir).resolve("ready.properties"));
 				} catch (IOException ignored) {
 					// the install overwrites it anyway
 				}
-				show();
+				show(); // the version list there starts at the newest
+			} else if (newest != null) {
+				Standalone.setIgnoredUpdate(gameDir, newest);
 			}
 		}
 
@@ -540,7 +579,7 @@ public final class BtaSetup {
 				boolean unsupported = false;
 				try {
 					if (standalone) {
-						Standalone.install(gameDir, jar, REPO_RAW, ref(version), user, uuid, t -> SwingUtilities.invokeLater(() -> bar.setString(t)));
+						Standalone.install(gameDir, jar, REPO_RAW, ref(version), version, user, uuid, t -> SwingUtilities.invokeLater(() -> bar.setString(t)));
 						Standalone.launch(gameDir, user, uuid);
 						result = null; // started: nothing to say, the window just closes
 					} else {
@@ -701,8 +740,14 @@ public final class BtaSetup {
 				move(mod, target);
 				disabled++;
 			}
+			String halp;
+			try {
+				halp = "HalpLibe: " + Standalone.halplibe(gameDir.resolve("mods"), version) + " (downloaded, older HalpLibe jars removed).\n";
+			} catch (Exception e) {
+				halp = "HalpLibe could not be downloaded (" + e.getMessage() + "); add it to the mods folder yourself.\n";
+			}
 			return "Better than Adventure " + version + " is set up.\n\n"
-				+ disabled + " mod(s) were disabled (renamed to .jar.disabled), " + kept + " kept.\n"
+				+ disabled + " mod(s) were disabled (renamed to .jar.disabled), " + kept + " kept.\n" + halp
 				+ "The old instance files are in " + backup.getFileName() + ".\n\n"
 				+ "Now fully close your launcher and open it again, then start this instance. The launcher will download Better than Adventure.";
 		}

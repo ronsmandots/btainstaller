@@ -24,3 +24,14 @@ folder are moved to `bta/game/mods` (this installer stays).
 "Open Better than Adventure automatically from now on" (a checkbox in the launch prompt) creates `bta/auto-launch`; with
 it, opening the instance starts Better than Adventure without asking. Delete that file to get the prompt back (delete
 `bta/ready.properties` as well to see the install window again).
+
+## HalpLibe and updates
+Every install (and reinstall) downloads the newest HalpLibe release made for the chosen Better than Adventure version
+from GitHub (Turnip-Labs/bta-halplibe; files named like `halplibe-6.2.0+8.0.1.jar`; same major.minor and not a newer patch
+also counts) into the mods folder it uses (`bta/game/mods`, or the instance's `mods` on Prism/MultiMC), and removes older
+HalpLibe jars there. HalpLibe jars found in the instance's mods folder are not moved over; the installer manages that one.
+
+When the prompt appears on a later run and the repo has a newer Better than Adventure version than the installed one, it
+offers "Update to X" with a warning to update the mods to X too. "Launch" or "Not now" remembers that version
+(`bta/update-ignored`), so it only asks again for an even newer one; "Reinstall" can still pick any version. The automatic
+launch is skipped, showing the prompt, while a not-yet-declined update exists.

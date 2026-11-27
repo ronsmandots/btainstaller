@@ -68,6 +68,91 @@ final class Standalone {
 		return Files.isRegularFile(root(gameDir).resolve("ready.properties"));
 	}
 
+	private static final String HALPLIBE_API = "https://api.github.com/repos/Turnip-Labs/bta-halplibe/releases?per_page=100";
+	private static final java.util.regex.Pattern HALPLIBE_JAR = java.util.regex.Pattern.compile("halplibe-[^+]+\\+(\\d+(?:\\.\\d+)*)\\.jar");
+
+	/**
+	 * Downloads the newest HalpLibe release made for this Better than Adventure version (its file name ends in +8.0.1; one
+	 * made for the same major.minor and an older or equal patch counts too) from GitHub into modsDir, replacing older
+	 * HalpLibe jars there. Returns the file name.
+	 */
+	static String halplibe(Path modsDir, String btaVersion) throws Exception {
+		Object releases = new Json(new String(download(HALPLIBE_API), StandardCharsets.UTF_8)).value();
+		String[] v = btaVersion.split("\\.");
+		String minor = v[0] + "." + (v.length > 1 ? v[1] : "0");
+		String name = null;
+		String url = null;
+		// GitHub lists releases newest first.
+		for (Object r : list(releases)) {
+			Map<String, Object> release = obj(r);
+			if (Boolean.TRUE.equals(release.get("prerelease")) || Boolean.TRUE.equals(release.get("draft"))) {
+				continue;
+			}
+			for (Object a : list(release.get("assets"))) {
+				Map<String, Object> asset = obj(a);
+				java.util.regex.Matcher m = HALPLIBE_JAR.matcher(String.valueOf(asset.get("name")));
+				if (name == null && m.matches() && compatible(m.group(1), btaVersion, minor)) {
+					name = (String) asset.get("name");
+					url = (String) asset.get("browser_download_url");
+				}
+			}
+			if (name != null) {
+				break;
+			}
+		}
+		if (name == null) {
+			throw new IOException("No HalpLibe release is made for Better than Adventure " + btaVersion);
+		}
+		Files.createDirectories(modsDir);
+		fetch(url, modsDir.resolve(name), null, null);
+		try (java.nio.file.DirectoryStream<Path> old = Files.newDirectoryStream(modsDir, "halplibe-*.jar")) {
+			for (Path f : old) {
+				if (!f.getFileName().toString().equals(name)) {
+					try {
+						Files.deleteIfExists(f);
+					} catch (IOException stuck) {
+						System.out.println("Could not remove the old " + f.getFileName() + ": " + stuck);
+					}
+				}
+			}
+		}
+		return name;
+	}
+
+	/** A HalpLibe built for {@code target} runs on {@code version} when it is the same major.minor and not a newer patch. */
+	private static boolean compatible(String target, String version, String minor) {
+		String[] t = target.split("\\.");
+		return t.length >= 2 && (t[0] + "." + t[1]).equals(minor) && BtaSetup.compareVersions(target, version) <= 0;
+	}
+
+	/** The Better than Adventure version this folder was installed with (null for installs from before it was saved). */
+	static String installedVersion(Path gameDir) {
+		Properties ready = new Properties();
+		try (InputStream in = Files.newInputStream(root(gameDir).resolve("ready.properties"))) {
+			ready.load(in);
+		} catch (IOException e) {
+			return null;
+		}
+		return ready.getProperty("btaVersion");
+	}
+
+	/** The newer version the player has already said no to; they are not asked about it again, only about an even newer one. */
+	static String ignoredUpdate(Path gameDir) {
+		try {
+			return new String(Files.readAllBytes(root(gameDir).resolve("update-ignored")), StandardCharsets.UTF_8).trim();
+		} catch (IOException e) {
+			return null;
+		}
+	}
+
+	static void setIgnoredUpdate(Path gameDir, String version) {
+		try {
+			Files.write(root(gameDir).resolve("update-ignored"), version.getBytes(StandardCharsets.UTF_8));
+		} catch (IOException ignored) {
+			// asked again next time
+		}
+	}
+
 	/** Whether opening the instance starts Better than Adventure straight away (the file bta/auto-launch exists). */
 	static boolean autoLaunch(Path gameDir) {
 		return Files.isRegularFile(root(gameDir).resolve("auto-launch"));
@@ -89,7 +174,7 @@ final class Standalone {
 	// ---------------------------------------------------------------- install
 
 	/** Downloads and prepares everything; returns once the game can be started with {@link #launch}. */
-	static void install(Path gameDir, Path ownJar, String repoRaw, String branch, String user, String uuid, Progress p) throws Exception {
+	static void install(Path gameDir, Path ownJar, String repoRaw, String branch, String version, String user, String uuid, Progress p) throws Exception {
 		Path root = root(gameDir);
 		Path game = root.resolve("game");
 		Files.createDirectories(game);
@@ -129,6 +214,14 @@ final class Standalone {
 		// Assets: Beta 1.7.3 reads its sounds and such from <game folder>/resources.
 		assets(obj(mc.get("assetIndex")), game.resolve("resources"), p);
 
+		// HalpLibe, which every Better than Adventure mod needs: the newest one made for this version.
+		p.say("Downloading HalpLibe...");
+		try {
+			System.out.println("HalpLibe: " + halplibe(game.resolve("mods"), version));
+		} catch (Exception e) {
+			System.out.println("Could not download HalpLibe: " + e); // BTA itself still works; the mods need it
+		}
+
 		// Java 17.
 		p.say("Looking for Java 17...");
 		Path java = findJava(root, p);
@@ -136,6 +229,7 @@ final class Standalone {
 
 		Properties ready = new Properties();
 		ready.setProperty("version", String.valueOf(bta.get("version")));
+		ready.setProperty("btaVersion", version);
 		ready.setProperty("java", java.toString());
 		ready.setProperty("mainClass", String.valueOf(fabric.get("mainClass")));
 		ready.setProperty("classpath", join(classpath, "|"));
@@ -161,7 +255,8 @@ final class Standalone {
 		}
 		for (Path m : mods) {
 			try {
-				if (isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
+				// HalpLibe is managed by the installer (one version, the right one), so a copy in the instance stays where it is.
+				if (m.getFileName().toString().toLowerCase().startsWith("halplibe") || isInstaller(m) || !BtaSetup.Setup.isBtaMod(m)) {
 					continue;
 				}
 				Files.createDirectories(to);
