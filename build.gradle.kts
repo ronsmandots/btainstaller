@@ -2,7 +2,7 @@ plugins {
 	java
 }
 
-version = "${providers.gradleProperty("mod_version").get()}+${providers.gradleProperty("bta_version").get()}"
+version = providers.gradleProperty("mod_version").get()
 base.archivesName = "btainstaller"
 
 // Plain Java 8 with no Minecraft or loader code, so the one jar loads on any Minecraft version and loader
