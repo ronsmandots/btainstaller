@@ -66,6 +66,8 @@ public final class BtaSetup {
 		"patches/custom.jarmod.bta.json",
 		"patches/net.fabricmc.fabric-loader.json",
 	};
+	/** Written by the installer once its window is showing: the original game can close then. */
+	private static final String READY = "btainstaller.ready";
 	private static final String MARKER = "ron/btainstaller/BtaSetup.class";
 
 	private BtaSetup() {
@@ -103,11 +105,37 @@ public final class BtaSetup {
 			pb.environment().remove("_JAVA_OPTIONS");
 			pb.redirectErrorStream(true);
 			pb.redirectOutput(gameDir.resolve("btainstaller.log").toFile());
-			pb.start();
-			Runtime.getRuntime().halt(0);
+			Path ready = gameDir.resolve(READY);
+			Files.deleteIfExists(ready);
+			Process child = pb.start();
+			// The game stays until the installer's window is up (it says so with a file), then goes; if the installer dies or
+			// never shows a window the game just carries on.
+			long end = System.currentTimeMillis() + 90000L;
+			while (System.currentTimeMillis() < end) {
+				if (Files.exists(ready)) {
+					Files.deleteIfExists(ready);
+					Runtime.getRuntime().halt(0);
+				}
+				if (!child.isAlive()) {
+					trace(gameDir, "start: the installer ended without opening its window");
+					return;
+				}
+				Thread.sleep(100L);
+			}
+			child.destroy();
+			trace(gameDir, "start: the installer's window did not open in time");
 		} catch (Throwable t) {
 			// Never break a game over this: carry on loading (the mod then simply does nothing here).
 			t.printStackTrace();
+		}
+	}
+
+	/** Tells the game that started this installer that its window is up. */
+	static void ready(Path gameDir) {
+		try {
+			Files.write(gameDir.resolve(READY), new byte[0]);
+		} catch (Throwable ignored) {
+			// the game then waits for its timeout and carries on
 		}
 	}
 
@@ -420,6 +448,7 @@ public final class BtaSetup {
 		private void offerLaunch() {
 			Object[] options = {"Launch Better than Adventure", "Reinstall", "Not now"};
 			java.awt.Frame owner = onTop();
+			ready(gameDir);
 			int c = JOptionPane.showOptionDialog(owner, "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
 				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
 			owner.dispose();
@@ -513,11 +542,12 @@ public final class BtaSetup {
 			return f;
 		}
 
-		private static void front(final JDialog d) {
+		private void front(final JDialog d) {
 			d.setAlwaysOnTop(true);
 			d.addWindowListener(new java.awt.event.WindowAdapter() {
 				@Override
 				public void windowOpened(java.awt.event.WindowEvent e) {
+					ready(gameDir);
 					d.toFront();
 					d.requestFocus();
 				}
