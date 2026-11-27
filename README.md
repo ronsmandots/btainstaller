@@ -20,3 +20,7 @@ Your instance is not changed. Not tested in real launchers yet.
 The note window has a version selector (the tags of the instance repo, newest selected by default; only the built-in
 version when GitHub can't be reached). In the standalone mode, Better than Adventure mods found in the instance's mods
 folder are moved to `bta/game/mods` (this installer stays).
+
+"Open Better than Adventure automatically from now on" (a checkbox in the launch prompt) creates `bta/auto-launch`; with
+it, opening the instance starts Better than Adventure without asking. Delete that file to get the prompt back (delete
+`bta/ready.properties` as well to see the install window again).

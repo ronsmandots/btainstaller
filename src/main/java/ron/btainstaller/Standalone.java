@@ -68,6 +68,24 @@ final class Standalone {
 		return Files.isRegularFile(root(gameDir).resolve("ready.properties"));
 	}
 
+	/** Whether opening the instance starts Better than Adventure straight away (the file bta/auto-launch exists). */
+	static boolean autoLaunch(Path gameDir) {
+		return Files.isRegularFile(root(gameDir).resolve("auto-launch"));
+	}
+
+	static void setAutoLaunch(Path gameDir, boolean on) {
+		try {
+			Path file = root(gameDir).resolve("auto-launch");
+			if (on) {
+				Files.write(file, new byte[0]);
+			} else {
+				Files.deleteIfExists(file);
+			}
+		} catch (IOException ignored) {
+			// the prompt simply keeps appearing
+		}
+	}
+
 	// ---------------------------------------------------------------- install
 
 	/** Downloads and prepares everything; returns once the game can be started with {@link #launch}. */

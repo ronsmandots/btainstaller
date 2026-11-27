@@ -446,14 +446,27 @@ public final class BtaSetup {
 
 		/** Already installed: start it, reinstall it, or carry on with the launcher's own game (which is closed, so: nothing). */
 		private void offerLaunch() {
+			if (Standalone.autoLaunch(gameDir)) {
+				ready(gameDir);
+				try {
+					Standalone.launch(gameDir, user, uuid);
+					System.exit(0);
+				} catch (Throwable t) {
+					t.printStackTrace();
+					message("Could not start Better than Adventure:\n" + t, "BTA Installer", JOptionPane.WARNING_MESSAGE);
+					return;
+				}
+			}
 			Object[] options = {"Launch Better than Adventure", "Reinstall", "Not now"};
 			java.awt.Frame owner = onTop();
 			ready(gameDir);
-			int c = JOptionPane.showOptionDialog(owner, "Better than Adventure is installed next to this instance.\nStart it now?", "BTA Installer",
+			javax.swing.JCheckBox auto = new javax.swing.JCheckBox("Open Better than Adventure automatically from now on");
+			int c = JOptionPane.showOptionDialog(owner, new Object[]{"Better than Adventure is installed next to this instance.\nStart it now?", auto}, "BTA Installer",
 				JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
 			owner.dispose();
 			if (c == 0) {
 				try {
+					Standalone.setAutoLaunch(gameDir, auto.isSelected());
 					Standalone.launch(gameDir, user, uuid);
 				} catch (Throwable t) {
 					t.printStackTrace();
