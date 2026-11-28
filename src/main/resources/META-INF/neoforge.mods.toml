@@ -1,7 +1,7 @@
 # Read by NeoForge 1.20.5+.
 modLoader="javafml"
 loaderVersion="[1,)"
-license="MIT"
+license="CC0-1.0"
 
 [[mods]]
 modId="btainstaller"
